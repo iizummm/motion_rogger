@@ -3,23 +3,23 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>加速度＋GPSロガー（状態表示付き）</title>
+<title>加速度＋GPSロガー（iOS対応版）</title>
 <style>
   body { font-family: sans-serif; padding: 10px; }
   button { font-size: 1.2em; padding: 10px 20px; margin: 5px; }
-  pre { white-space: pre-wrap; word-wrap: break-word; background: #f0f0f0; padding: 8px; }
+  pre { white-space: pre-wrap; word-wrap: break-word; background: #f0f0f0; padding: 8px; max-height: 200px; overflow-y: auto; }
   #status { font-weight: bold; margin-bottom: 1em; }
 </style>
 </head>
 <body>
 
-<h2>加速度＋GPS ログ取得（状態表示付き）</h2>
+<h2>加速度＋GPS ログ取得（iOS Safari対応版）</h2>
 
 <button id="startBtn">ログ開始</button>
 <button id="stopBtn" disabled>ログ停止</button>
 <button id="downloadBtn" disabled>CSVダウンロード</button>
 
-<p id="status">準備完了</p>
+<p id="status">準備完了。ログ開始を押してください。</p>
 <pre id="logPreview"></pre>
 
 <script>
@@ -46,7 +46,6 @@
     return d.toISOString();
   }
 
-  // 加速度イベント処理
   function onDeviceMotion(event) {
     if (!logging) return;
     const a = event.acceleration;
@@ -65,30 +64,45 @@
     const row = [formatISODate(timestamp), ax, ay, az, lat, lon];
     logData.push(row);
 
-    // プレビューに最新10行表示
+    // 最新10行をプレビュー表示
     let previewText = csvHeader.join(',') + '\n';
     previewText += logData.slice(-10).map(r => r.join(',')).join('\n');
     logPreview.textContent = previewText;
   }
 
-  // GPS位置取得成功コールバック
   function onPositionUpdate(position) {
     latestPosition.lat = position.coords.latitude;
     latestPosition.lon = position.coords.longitude;
     updateStatus(`GPS更新: lat=${latestPosition.lat.toFixed(6)} lon=${latestPosition.lon.toFixed(6)}`);
   }
 
-  // GPS位置取得失敗コールバック
   function onPositionError(err) {
     console.warn('GPS error:', err.message);
+    updateStatus(`GPS取得エラー: ${err.message}`);
   }
 
-  // ログ開始
-  startBtn.onclick = () => {
+  startBtn.onclick = async () => {
     if (logging) return;
+
+    // iOS Safari 加速度センサー許可要求
+    if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
+      try {
+        const response = await DeviceMotionEvent.requestPermission();
+        if (response !== 'granted') {
+          alert('加速度センサーの使用が許可されませんでした。');
+          updateStatus('加速度センサー許可なし');
+          return;
+        }
+      } catch (e) {
+        alert('加速度センサーの許可取得に失敗しました。');
+        updateStatus('加速度センサー許可取得失敗');
+        return;
+      }
+    }
+
     logData = [];
-    updateStatus('ログ取得中...');
     logging = true;
+    updateStatus('ログ取得中...');
 
     if (navigator.geolocation) {
       watchID = navigator.geolocation.watchPosition(onPositionUpdate, onPositionError, {
@@ -98,6 +112,8 @@
       });
     } else {
       alert('このブラウザはGeolocation APIに対応していません。');
+      updateStatus('Geolocation API未対応');
+      return;
     }
 
     window.addEventListener('devicemotion', onDeviceMotion);
@@ -107,7 +123,6 @@
     downloadBtn.disabled = true;
   };
 
-  // ログ停止
   stopBtn.onclick = () => {
     if (!logging) return;
     logging = false;
@@ -125,7 +140,6 @@
     downloadBtn.disabled = false;
   };
 
-  // CSVダウンロード
   downloadBtn.onclick = () => {
     if (logData.length === 0) {
       alert('ログデータがありません。');
@@ -146,7 +160,6 @@
     URL.revokeObjectURL(url);
   };
 
-  updateStatus('準備完了。ログ開始を押してください。');
 })();
 </script>
 
