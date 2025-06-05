@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>加速度＋GPSロガー</title>
+<style>
+  body { font-family: sans-serif; padding: 10px; }
+  button { font-size: 1.2em; padding: 10px 20px; margin: 5px; }
+  pre { white-space: pre-wrap; word-wrap: break-word; }
+</style>
+</head>
+<body>
+
+<h2>加速度＋GPS ログ取得</h2>
+
+<button id="startBtn">ログ開始</button>
+<button id="stopBtn" disabled>ログ停止</button>
+<button id="downloadBtn" disabled>CSVダウンロード</button>
+
+<p id="status">準備完了</p>
+<pre id="logPreview"></pre>
+
+<script>
+(() => {
+  let logging = false;
+  let logData = [];
+  let latestPosition = { lat: null, lon: null };
+  let watchID = null;
+
+  const startBtn = document.getElementById('startBtn');
+  const stopBtn = document.getElementById('stopBtn');
+  const downloadBtn = document.getElementById('downloadBtn');
+  const status = document.getElementById('status');
+  const logPreview = document.getElementById('logPreview');
+
+  // CSVヘッダー
+  const csvHeader = ['timestamp','accelX','accelY','accelZ','latitude','longitude'];
+
+  function updateStatus(msg) {
+    status.textContent = msg;
+  }
+
+  function formatISODate(d) {
+    return d.toISOString();
+  }
+
+  // 加速度イベント処理
+  function onDeviceMotion(event) {
+    if (!logging) return;
+    const a = event.acceleration;
+    const timestamp = new Date();
+
+    // 取得できない場合はnull
+    const ax = a && a.x !== null ? a.x.toFixed(3) : '';
+    const ay = a && a.y !== null ? a.y.toFixed(3) : '';
+    const az = a && a.z !== null ? a.z.toFixed(3) : '';
+
+    const lat = latestPosition.lat !== null ? latestPosition.lat.toFixed(6) : '';
+    const lon = latestPosition.lon !== null ? latestPosition.lon.toFixed(6) : '';
+
+    const row = [formatISODate(timestamp), ax, ay, az, lat, lon];
+    logData.push(row);
+
+    // プレビューに最新10行表示
+    let previewText = csvHeader.join(',') + '\n';
+    previewText += logData.slice(-10).map(r => r.join(',')).join('\n');
+    logPreview.textContent = previewText;
+  }
+
+  // GPS位置取得成功コールバック
+  function onPositionUpdate(position) {
+    latestPosition.lat = position.coords.latitude;
+    latestPosition.lon = position.coords.longitude;
+  }
+
+  // GPS位置取得失敗コールバック
+  function onPositionError(err) {
+    console.warn('GPS error:', err.message);
+  }
+
+  // ログ開始
+  startBtn.onclick = () => {
+    if (logging) return;
+    logData = [];
+    updateStatus('ログ取得中...');
+    logging = true;
+
+    // GPSのwatchPosition開始
+    if (navigator.geolocation) {
+      watchID = navigator.geolocation.watchPosition(onPositionUpdate, onPositionError, {
+        enableHighAccuracy: true,
+        maximumAge: 1000,
+        timeout: 5000
+      });
+    } else {
+      alert('このブラウザはGeolocation APIに対応していません。');
+    }
+
+    // 加速度イベント登録
+    window.addEventListener('devicemotion', onDeviceMotion);
+
+    startBtn.disabled = true;
+    stopBtn.disabled = false;
+    downloadBtn.disabled = true;
+  };
+
+  // ログ停止
+  stopBtn.onclick = () => {
+    if (!logging) return;
+    logging = false;
+    updateStatus('ログ停止しました。');
+
+    if (watchID !== null) {
+      navigator.geolocation.clearWatch(watchID);
+      watchID = null;
+    }
+
+    window.removeEventListener('devicemotion', onDeviceMotion);
+
+    startBtn.disabled = false;
+    stopBtn.disabled = true;
+    downloadBtn.disabled = false;
+  };
+
+  // CSVダウンロード
+  downloadBtn.onclick = () => {
+    if (logData.length === 0) {
+      alert('ログデータがありません。');
+      return;
+    }
+    let csvContent = csvHeader.join(',') + '\n';
+    csvContent += logData.map(e => e.join(',')).join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'accel_gps_log.csv';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  updateStatus('準備完了。ログ開始を押してください。');
+})();
+</script>
+
+</body>
+</html>
