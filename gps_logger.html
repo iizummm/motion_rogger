@@ -81,25 +81,29 @@
     updateStatus(`GPS取得エラー: ${err.message}`);
   }
 
+ 
   startBtn.onclick = async () => {
-    if (logging) return;
+  console.log('ログ開始ボタン押された');
 
-    // iOS Safari 加速度センサー許可要求
-    if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
-      try {
-        const response = await DeviceMotionEvent.requestPermission();
-        if (response !== 'granted') {
-          alert('加速度センサーの使用が許可されませんでした。');
-          updateStatus('加速度センサー許可なし');
-          return;
-        }
-      } catch (e) {
-        alert('加速度センサーの許可取得に失敗しました。');
-        updateStatus('加速度センサー許可取得失敗');
+  if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
+    console.log('DeviceMotionEvent.requestPermission()を呼び出す直前');
+    try {
+      const response = await DeviceMotionEvent.requestPermission();
+      console.log('permission response:', response);
+      if (response !== 'granted') {
+        alert('加速度センサーの使用が許可されませんでした。');
+        updateStatus('加速度センサー許可なし');
         return;
       }
+    } catch (e) {
+      console.error('加速度センサーの許可取得に失敗:', e);
+      alert('加速度センサーの許可取得に失敗しました。');
+      updateStatus('加速度センサー許可取得失敗');
+      return;
     }
-
+  } else {
+    console.log('DeviceMotionEvent.requestPermissionは存在しません');
+  }
     logData = [];
     logging = true;
     updateStatus('ログ取得中...');
