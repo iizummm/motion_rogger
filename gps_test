@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>GPS位置情報テスト</title>
+  <style>
+    body { font-family: sans-serif; padding: 1em; }
+    #status { margin-top: 1em; color: green; }
+    #log { margin-top: 1em; white-space: pre-wrap; font-family: monospace; }
+  </style>
+</head>
+<body>
+  <h1>GPS位置情報取得テスト</h1>
+  <button id="startBtn">位置情報の取得を開始</button>
+  <button id="stopBtn" disabled>停止</button>
+
+  <div id="status">未開始</div>
+  <div id="log"></div>
+
+  <script>
+    const startBtn = document.getElementById('startBtn');
+    const stopBtn = document.getElementById('stopBtn');
+    const statusDiv = document.getElementById('status');
+    const logDiv = document.getElementById('log');
+
+    let watchId = null;
+
+    function updateStatus(msg) {
+      statusDiv.textContent = msg;
+    }
+
+    function logMessage(msg) {
+      logDiv.textContent += msg + "\n";
+      console.log('[LOG]', msg);
+    }
+
+    function onPositionUpdate(position) {
+      const { latitude, longitude, accuracy } = position.coords;
+      const timestamp = new Date(position.timestamp).toLocaleTimeString();
+      const msg = `[${timestamp}] 緯度: ${latitude.toFixed(6)}, 経度: ${longitude.toFixed(6)}, 精度: ±${accuracy}m`;
+      updateStatus("位置情報を取得中…");
+      logMessage(msg);
+    }
+
+    function onPositionError(error) {
+      const msg = `位置情報取得エラー: (${error.code}) ${error.message}`;
+      updateStatus("位置情報の取得に失敗しました");
+      logMessage(msg);
+    }
+
+    startBtn.onclick = () => {
+      if (!navigator.geolocation) {
+        updateStatus("このブラウザは位置情報に対応していません");
+        return;
+      }
+      watchId = navigator.geolocation.watchPosition(onPositionUpdate, onPositionError, {
+        enableHighAccuracy: true,
+        maximumAge: 0,
+        timeout: 10000
+      });
+      updateStatus("位置情報の取得を開始しました");
+      startBtn.disabled = true;
+      stopBtn.disabled = false;
+    };
+
+    stopBtn.onclick = () => {
+      if (watchId !== null) {
+        navigator.geolocation.clearWatch(watchId);
+        watchId = null;
+        updateStatus("位置情報の取得を停止しました");
+        logMessage("=== 停止 ===");
+      }
+      startBtn.disabled = false;
+      stopBtn.disabled = true;
+    };
+  </script>
+</body>
+</html>
