@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>Motion Logger</title>
+  <style>
+    body { font-family: sans-serif; padding: 1em; }
+    button { margin: 0.5em; padding: 0.5em 1em; }
+    pre { background: #f5f5f5; padding: 0.5em; overflow-x: auto; }
+  </style>
+</head>
+<body>
+  <h1>📱 Motion Logger</h1>
+  <p>加速度・ジャイロのセンサ値を記録してCSVで保存します（iOSでは許可が必要です）。</p>
+
+  <button onclick="requestPermission()">センサ使用許可（iOS）</button>
+  <button onclick="startLogging()">記録開始</button>
+  <button onclick="stopLogging()">記録停止</button>
+  <button onclick="downloadCSV()">CSV保存</button>
+
+  <h2>リアルタイム値</h2>
+  <pre id="output">未取得</pre>
+
+  <script>
+    let data = [];
+    let logging = false;
+
+    function requestPermission() {
+      if (typeof DeviceMotionEvent.requestPermission === 'function') {
+        DeviceMotionEvent.requestPermission().then(response => {
+          if (response === 'granted') {
+            alert("センサ使用が許可されました！");
+          } else {
+            alert("センサ使用が拒否されました。");
+          }
+        });
+      } else {
+        alert("このブラウザでは不要です。");
+      }
+    }
+
+    window.addEventListener('devicemotion', (event) => {
+      const acc = event.acceleration;
+      const rot = event.rotationRate;
+      const t = new Date().toISOString();
+
+      const row = {
+        time: t,
+        accX: acc?.x?.toFixed(3),
+        accY: acc?.y?.toFixed(3),
+        accZ: acc?.z?.toFixed(3),
+        rotAlpha: rot?.alpha?.toFixed(2),
+        rotBeta: rot?.beta?.toFixed(2),
+        rotGamma: rot?.gamma?.toFixed(2)
+      };
+
+      document.getElementById("output").textContent =
+        `time: ${row.time}\nacc: (${row.accX}, ${row.accY}, ${row.accZ})\nrot: (${row.rotAlpha}, ${row.rotBeta}, ${row.rotGamma})`;
+
+      if (logging) data.push(row);
+    });
+
+    function startLogging() {
+      data = [];
+      logging = true;
+      alert("記録を開始しました。");
+    }
+
+    function stopLogging() {
+      logging = false;
+      alert("記録を停止しました。CSV保存を忘れずに！");
+    }
+
+    function downloadCSV() {
+      if (data.length === 0) return alert("データがありません。");
+
+      const csvHeader = "time,accX,accY,accZ,rotAlpha,rotBeta,rotGamma\n";
+      const csvRows = data.map(row =>
+        `${row.time},${row.accX},${row.accY},${row.accZ},${row.rotAlpha},${row.rotBeta},${row.rotGamma}`
+      );
+      const csvContent = csvHeader + csvRows.join("\n");
+
+      const blob = new Blob([csvContent], { type: "text/csv" });
+      const url = URL.createObjectURL(blob);
+
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "motion_log.csv";
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+  </script>
+</body>
+</html>
