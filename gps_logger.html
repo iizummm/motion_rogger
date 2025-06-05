@@ -3,16 +3,17 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>加速度＋GPSロガー</title>
+<title>加速度＋GPSロガー（状態表示付き）</title>
 <style>
   body { font-family: sans-serif; padding: 10px; }
   button { font-size: 1.2em; padding: 10px 20px; margin: 5px; }
-  pre { white-space: pre-wrap; word-wrap: break-word; }
+  pre { white-space: pre-wrap; word-wrap: break-word; background: #f0f0f0; padding: 8px; }
+  #status { font-weight: bold; margin-bottom: 1em; }
 </style>
 </head>
 <body>
 
-<h2>加速度＋GPS ログ取得</h2>
+<h2>加速度＋GPS ログ取得（状態表示付き）</h2>
 
 <button id="startBtn">ログ開始</button>
 <button id="stopBtn" disabled>ログ停止</button>
@@ -49,9 +50,11 @@
   function onDeviceMotion(event) {
     if (!logging) return;
     const a = event.acceleration;
+    if (a) {
+      updateStatus(`加速度検出: x=${a.x?.toFixed(2)} y=${a.y?.toFixed(2)} z=${a.z?.toFixed(2)}`);
+    }
     const timestamp = new Date();
 
-    // 取得できない場合はnull
     const ax = a && a.x !== null ? a.x.toFixed(3) : '';
     const ay = a && a.y !== null ? a.y.toFixed(3) : '';
     const az = a && a.z !== null ? a.z.toFixed(3) : '';
@@ -72,6 +75,7 @@
   function onPositionUpdate(position) {
     latestPosition.lat = position.coords.latitude;
     latestPosition.lon = position.coords.longitude;
+    updateStatus(`GPS更新: lat=${latestPosition.lat.toFixed(6)} lon=${latestPosition.lon.toFixed(6)}`);
   }
 
   // GPS位置取得失敗コールバック
@@ -86,7 +90,6 @@
     updateStatus('ログ取得中...');
     logging = true;
 
-    // GPSのwatchPosition開始
     if (navigator.geolocation) {
       watchID = navigator.geolocation.watchPosition(onPositionUpdate, onPositionError, {
         enableHighAccuracy: true,
@@ -97,7 +100,6 @@
       alert('このブラウザはGeolocation APIに対応していません。');
     }
 
-    // 加速度イベント登録
     window.addEventListener('devicemotion', onDeviceMotion);
 
     startBtn.disabled = true;
