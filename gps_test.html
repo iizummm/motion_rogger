@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>GPSロガー</title>
+  <style>
+    body { font-family: sans-serif; padding: 1em; }
+    button { margin: 0.5em 0.5em 0.5em 0; }
+    #status { margin-top: 1em; color: green; }
+    #log { margin-top: 1em; white-space: pre-wrap; font-family: monospace; }
+  </style>
+</head>
+<body>
+  <h1>GPSロガー（CSV出力付き）</h1>
+
+  <button id="startBtn">開始</button>
+  <button id="stopBtn" disabled>停止</button>
+  <button id="downloadBtn" disabled>CSV出力</button>
+
+  <div id="status">未開始</div>
+  <div id="log"></div>
+
+  <script>
+    const startBtn = document.getElementById('startBtn');
+    const stopBtn = document.getElementById('stopBtn');
+    const downloadBtn = document.getElementById('downloadBtn');
+    const statusDiv = document.getElementById('status');
+    const logDiv = document.getElementById('log');
+
+    let watchId = null;
+    let logs = [];
+
+    function updateStatus(msg) {
+      statusDiv.textContent = msg;
+    }
+
+    function logMessage(msg) {
+      logDiv.textContent += msg + "\n";
+      console.log('[LOG]', msg);
+    }
+
+    function onPositionUpdate(position) {
+      const { latitude, longitude, accuracy } = position.coords;
+      const timestamp = new Date(position.timestamp);
+      const timestr = timestamp.toISOString();
+
+      const msg = `[${timestr}] 緯度: ${latitude.toFixed(6)}, 経度: ${longitude.toFixed(6)}, 精度: ±${accuracy}m`;
+      updateStatus("位置情報を取得中…");
+      logMessage(msg);
+
+      // CSV用ログに追加
+      logs.push({
+        timestamp: timestr,
+        latitude: latitude,
+        longitude: longitude,
+        accuracy: accuracy
+      });
+    }
+
+    function onPositionError(error) {
+      const msg = `位置情報取得エラー: (${error.code}) ${error.message}`;
+      updateStatus("位置情報の取得に失敗しました");
+      logMessage(msg);
+    }
+
+    startBtn.onclick = () => {
+      if (!navigator.geolocation) {
+        updateStatus("このブラウザは位置情報に対応していません");
+        return;
+      }
+
+      logs = []; // ログ初期化
+      logDiv.textContent = "";
+      watchId = navigator.geolocation.watchPosition(onPositionUpdate, onPositionError, {
+        enableHighAccuracy: true,
+        maximumAge: 0,
+        timeout: 10000
+      });
+
+      updateStatus("位置情報の取得を開始しました");
+      startBtn.disabled = true;
+      stopBtn.disabled = false;
+      downloadBtn.disabled = true;
+    };
+
+    stopBtn.onclick = () => {
+      if (watchId !== null) {
+        navigator.geolocation.clearWatch(watchId);
+        watchId = null;
+        updateStatus("位置情報の取得を停止しました");
+        logMessage("=== 取得停止 ===");
+      }
+      startBtn.disabled = false;
+      stopBtn.disabled = true;
+      downloadBtn.disabled = logs.length === 0;
+    };
+
+    downloadBtn.onclick = () => {
+      if (logs.length === 0) return;
+
+      let csv = "timestamp,latitude,longitude,accuracy\n";
+      logs.forEach(entry => {
+        csv += `${entry.timestamp},${entry.latitude},${entry.longitude},${entry.accuracy}\n`;
+      });
+
+      const blob = new Blob([csv], { type: "text/csv" });
+      const url = URL.createObjectURL(blob);
+
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "gps_log.csv";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    };
+  </script>
+</body>
+</html>
