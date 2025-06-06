@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <title>GPS + 加速度ロガー</title>
+</head>
+<body>
+  <h1>GPS + 加速度センサ ログ</h1>
+  <button id="startButton">記録開始</button>
+  <button id="stopButton" disabled>記録停止</button>
+  <button id="downloadButton" disabled>CSV保存</button>
+  <pre id="log"></pre>
+
+  <script>
+    let logging = false;
+    let logData = [];
+    let watchId = null;
+
+    document.getElementById("startButton").onclick = () => {
+      logging = true;
+      logData = [];
+      document.getElementById("stopButton").disabled = false;
+      document.getElementById("startButton").disabled = true;
+      document.getElementById("downloadButton").disabled = true;
+      document.getElementById("log").textContent = "記録中...";
+
+      // GPS記録
+      if (navigator.geolocation) {
+        watchId = navigator.geolocation.watchPosition(
+          position => {
+            if (logging) {
+              logData.push({
+                timestamp: new Date().toISOString(),
+                latitude: position.coords.latitude,
+                longitude: position.coords.longitude,
+                accuracy: position.coords.accuracy,
+                accX: lastAccel.x,
+                accY: lastAccel.y,
+                accZ: lastAccel.z
+              });
+            }
+          },
+          error => {
+            console.error("位置情報エラー", error);
+          },
+          { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 }
+        );
+      }
+
+      // 加速度記録
+      window.addEventListener("devicemotion", motionHandler);
+    };
+
+    document.getElementById("stopButton").onclick = () => {
+      logging = false;
+      navigator.geolocation.clearWatch(watchId);
+      window.removeEventListener("devicemotion", motionHandler);
+      document.getElementById("log").textContent = JSON.stringify(logData, null, 2);
+      document.getElementById("downloadButton").disabled = false;
+      document.getElementById("startButton").disabled = false;
+      document.getElementById("stopButton").disabled = true;
+    };
+
+    let lastAccel = { x: null, y: null, z: null };
+    function motionHandler(event) {
+      if (event.acceleration) {
+        lastAccel = {
+          x: event.acceleration.x ?? 0,
+          y: event.acceleration.y ?? 0,
+          z: event.acceleration.z ?? 0
+        };
+      }
+    }
+
+    document.getElementById("downloadButton").onclick = () => {
+      const header = "timestamp,latitude,longitude,accuracy,accX,accY,accZ\n";
+      const csv =
+        header +
+        logData.map(e =>
+          [e.timestamp, e.latitude, e.longitude, e.accuracy, e.accX, e.accY, e.accZ].join(",")
+        ).join("\n");
+
+      const blob = new Blob([csv], { type: "text/csv" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "gps_accel_log.csv";
+      a.click();
+      URL.revokeObjectURL(url);
+    };
+  </script>
+</body>
+</html>
